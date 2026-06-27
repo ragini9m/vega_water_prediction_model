@@ -1,3 +1,8 @@
+'''
+calculate ET₀ -> calculate tree ET -> calculate thresholds -> convert sensor VWC to water storage
+    -> predict future storage -> predict VWC after 24 hours -> calculate required litres -> choose the watering decision
+'''
+    
 from __future__ import annotations
 
 from app.decision import (

@@ -1,3 +1,8 @@
+'''
+FAO-56 Penman–Monteith equation.
+result represents the environmental drying demand in:mm of water per day
+'''
+
 from __future__ import annotations
 
 from math import exp

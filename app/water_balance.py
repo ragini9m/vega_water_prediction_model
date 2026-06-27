@@ -1,3 +1,13 @@
+''' 
+This performs water calculations:
+Converting soil VWC into stored root-zone water
+Calculating the refill threshold
+Calculating tree evapotranspiration
+Adding effective rain
+Adding previous irrigation
+Predicting future root-zone water
+Calculating the required litres
+'''
 from __future__ import annotations
 
 

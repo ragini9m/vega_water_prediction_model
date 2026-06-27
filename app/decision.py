@@ -1,3 +1,13 @@
+'''
+converts the calculated numbers into a useful action and creates the priority score.
+NO_WATER_NEEDED
+MONITOR
+WAIT_FOR_RAIN
+WATER_WITHIN_24H
+WATER_NOW
+SENSOR_INSPECTION_REQUIRED 
+''' 
+
 from __future__ import annotations
 
 
