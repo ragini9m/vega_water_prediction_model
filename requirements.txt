@@ -1,7 +1,5 @@
 fastapi
-uvicorn[standard]
+uvicorn
 pydantic
-pandas
-numpy
 pytest
 httpx

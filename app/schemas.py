@@ -13,28 +13,93 @@ class WeatherInput(BaseModel):
     relative_humidity_percent: float = Field(ge=0, le=100)
     wind_speed_m_s: float = Field(ge=0, le=50)
 
-    net_radiation_mj_m2_day: float = Field(ge=0)
+    net_radiation_mj_m2_day: float = Field(
+        default=0.0,
+        ge=0,
+    )
+
+    shortwave_radiation_mj_m2_day: float = Field(
+        default=0.0,
+        ge=0,
+    )
+
     soil_heat_flux_mj_m2_day: float = 0.0
-    atmospheric_pressure_kpa: float = Field(default=101.3, gt=0)
 
-    rainfall_previous_24h_mm: float = Field(default=0.0, ge=0)
-    rainfall_forecast_24h_mm: float = Field(default=0.0, ge=0)
+    atmospheric_pressure_kpa: float = Field(
+        default=101.3,
+        gt=0,
+    )
 
+    rainfall_previous_24h_mm: float = Field(
+        default=0.0,
+        ge=0,
+    )
+
+    rainfall_forecast_24h_mm: float = Field(
+        default=0.0,
+        ge=0,
+    )
+
+    eto_forecast_24h_mm: float | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Reference ET supplied by the weather provider. "
+            "When available, this is used instead of calculating "
+            "ET0 from incomplete weather variables."
+        ),
+    )
+
+    weather_source: str = "manual"
 
 class TreeConfig(BaseModel):
     tree_id: str
     species: str = "unknown"
-    age_category: Literal["new", "young", "mature"] = "young"
+    age_category: Literal[
+        "new",
+        "young",
+        "mature",
+    ] = "young"
 
-    effective_depth_m: float = Field(gt=0, le=3)
-    irrigated_area_m2: float = Field(gt=0, le=100)
+    effective_depth_m: float = Field(
+        gt=0,
+        le=3,
+        description=(
+            "Effective soil depth represented by the sensor "
+            "and watering model."
+        ),
+    )
 
-    field_capacity_vwc: float = Field(gt=0, lt=1)
-    wilting_point_vwc: float = Field(gt=0, lt=1)
-    target_vwc: float = Field(gt=0, lt=1)
-    critical_vwc: float = Field(gt=0, lt=1)
+    irrigated_area_m2: float = Field(
+        gt=0,
+        le=100,
+    )
 
-    allowable_depletion: float = Field(default=0.4, ge=0, le=1)
+    field_capacity_vwc: float = Field(
+        gt=0,
+        lt=1,
+    )
+
+    wilting_point_vwc: float = Field(
+        gt=0,
+        lt=1,
+    )
+
+    target_vwc: float = Field(
+        gt=0,
+        lt=1,
+    )
+
+    critical_vwc: float = Field(
+        gt=0,
+        lt=1,
+    )
+
+    allowable_depletion: float = Field(
+        default=0.4,
+        ge=0,
+        le=1,
+    )
 
     site_adjusted_tree_coefficient: float = Field(
         default=0.65,
@@ -60,12 +125,24 @@ class TreeConfig(BaseModel):
         le=1,
     )
 
-    minimum_litres: float = Field(default=5.0, ge=0)
-    maximum_litres: float = Field(default=50.0, gt=0)
+    minimum_litres: float = Field(
+        default=5.0,
+        ge=0,
+    )
+
+    maximum_litres: float = Field(
+        default=50.0,
+        gt=0,
+    )
 
     @model_validator(mode="after")
-    def validate_thresholds(self) -> "TreeConfig":
-        if self.wilting_point_vwc >= self.field_capacity_vwc:
+    def validate_thresholds(
+        self,
+    ) -> "TreeConfig":
+        if (
+            self.wilting_point_vwc
+            >= self.field_capacity_vwc
+        ):
             raise ValueError(
                 "Wilting point must be below field capacity."
             )
@@ -88,11 +165,17 @@ class TreeConfig(BaseModel):
 
         return self
 
-
 class SensorInput(BaseModel):
     timestamp: datetime
 
-    soil_vwc: float = Field(ge=0, le=1)
+    soil_vwc: float = Field(
+        ge=0,
+        le=1,
+        description=(
+            "Calibrated volumetric water content, not raw ADC."
+        ),
+    )
+
     soil_temperature_c: float | None = Field(
         default=None,
         ge=-20,
@@ -113,6 +196,41 @@ class IrrigationRequest(BaseModel):
     weather: WeatherInput
     sensor: SensorInput
 
+class LivePredictionRequest(BaseModel):
+    tree: TreeConfig
+    sensor: SensorInput
+
+    latitude: float = Field(
+        ge=-90,
+        le=90,
+    )
+
+    longitude: float = Field(
+        ge=-180,
+        le=180,
+    )
+
+    timezone: str = Field(
+        default="auto",
+        description=(
+            "Open-Meteo timezone. Use 'auto' to determine it "
+            "from latitude and longitude."
+        ),
+    )
+
+
+class WeatherPreviewRequest(BaseModel):
+    latitude: float = Field(
+        ge=-90,
+        le=90,
+    )
+
+    longitude: float = Field(
+        ge=-180,
+        le=180,
+    )
+
+    timezone: str = "auto"
 
 class IrrigationResponse(BaseModel):
     tree_id: str

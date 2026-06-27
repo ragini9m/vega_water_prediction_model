@@ -40,8 +40,11 @@ def psychrometric_constant(
     """
     return 0.000665 * atmospheric_pressure_kpa
 
-
-def calculate_eto(weather: WeatherInput) -> float:
+def calculate_eto(
+    weather: WeatherInput,
+) -> float:
+    if weather.eto_forecast_24h_mm is not None:
+        return weather.eto_forecast_24h_mm
     """
     Simplified daily FAO-56 Penman-Monteith calculation.
 

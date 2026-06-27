@@ -3,12 +3,19 @@ from __future__ import annotations
 import csv
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 from app.model import run_irrigation_model
+from app.open_meteo import (
+    WeatherServiceError,
+    fetch_open_meteo_weather,
+)
 from app.schemas import (
     IrrigationRequest,
     IrrigationResponse,
+    LivePredictionRequest,
+    WeatherInput,
+    WeatherPreviewRequest,
 )
 
 
@@ -87,3 +94,58 @@ def predict(
     result = run_irrigation_model(request)
     save_prediction(result)
     return result
+
+@app.post(
+    "/predict-live",
+    response_model=IrrigationResponse,
+)
+async def predict_live(
+    request: LivePredictionRequest,
+) -> IrrigationResponse:
+    try:
+        weather = await fetch_open_meteo_weather(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            timezone_name=request.timezone,
+        )
+
+    except WeatherServiceError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
+
+    model_request = IrrigationRequest(
+        tree=request.tree,
+        sensor=request.sensor,
+        weather=weather,
+    )
+
+    prediction = run_irrigation_model(
+        model_request,
+    )
+
+    # Keep your existing persistence call here, when present.
+    # save_prediction(prediction)
+
+    return prediction
+
+@app.post(
+    "/weather-preview",
+    response_model=WeatherInput,
+)
+async def weather_preview(
+    request: WeatherPreviewRequest,
+) -> WeatherInput:
+    try:
+        return await fetch_open_meteo_weather(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            timezone_name=request.timezone,
+        )
+
+    except WeatherServiceError as exc:
+        raise HTTPException(
+            status_code=503,
+            detail=str(exc),
+        ) from exc
