@@ -13,33 +13,31 @@ from __future__ import annotations
 
 def vwc_to_storage_mm(
     volumetric_water_content: float,
-    root_depth_m: float,
+    effective_depth_m: float,
 ) -> float:
-    """
-    Convert volumetric water content to equivalent
-    water depth in the root zone.
+    if effective_depth_m <= 0:
+        raise ValueError(
+            "Effective depth must be greater than zero."
+        )
 
-    Example:
-        0.20 VWC × 0.30 m × 1000 = 60 mm
-    """
     return (
         volumetric_water_content
-        * root_depth_m
+        * effective_depth_m
         * 1000.0
     )
 
 
 def storage_mm_to_vwc(
     storage_mm: float,
-    root_depth_m: float,
+    effective_depth_m: float,
 ) -> float:
-    if root_depth_m <= 0:
+    if effective_depth_m <= 0:
         raise ValueError(
-            "Root depth must be greater than zero."
+            "Effective depth must be greater than zero."
         )
 
     return storage_mm / (
-        root_depth_m * 1000.0
+        effective_depth_m * 1000.0
     )
 
 
@@ -48,9 +46,6 @@ def calculate_refill_threshold(
     wilting_point_vwc: float,
     allowable_depletion: float,
 ) -> float:
-    """
-    Refill threshold based on allowable depletion.
-    """
     return field_capacity_vwc - (
         allowable_depletion
         * (
@@ -62,105 +57,141 @@ def calculate_refill_threshold(
 
 def calculate_tree_et(
     eto_mm_day: float,
-    tree_coefficient: float,
+    site_adjusted_tree_coefficient: float,
 ) -> float:
     return max(
         0.0,
-        eto_mm_day * tree_coefficient,
+        eto_mm_day
+        * site_adjusted_tree_coefficient,
     )
 
 
-def litres_to_mm(
-    litres: float,
-    area_m2: float,
-) -> float:
-    """
-    One litre over one square metre equals one millimetre.
-    """
-    if area_m2 <= 0:
-        raise ValueError(
-            "Area must be greater than zero."
-        )
-
-    return litres / area_m2
-
-
-def update_storage(
-    current_storage_mm: float,
-    tree_et_mm: float,
-    rainfall_mm: float,
-    irrigation_mm: float,
-    rainfall_efficiency: float,
-    irrigation_efficiency: float,
-) -> float:
-    effective_rain = (
-        max(0.0, rainfall_mm)
-        * rainfall_efficiency
+def forecast_root_zone_storage(
+    current_vwc: float,
+    effective_depth_m: float,
+    field_capacity_vwc: float,
+    tree_et_forecast_mm: float,
+    rainfall_forecast_mm: float,
+    rainfall_capture_efficiency: float,
+) -> dict:
+    current_storage_mm = vwc_to_storage_mm(
+        current_vwc,
+        effective_depth_m,
     )
 
-    effective_irrigation = (
-        max(0.0, irrigation_mm)
-        * irrigation_efficiency
+    effective_rain_mm = (
+        max(0.0, rainfall_forecast_mm)
+        * rainfall_capture_efficiency
     )
 
-    updated = (
+    unbounded_future_storage_mm = (
         current_storage_mm
-        - tree_et_mm
-        + effective_rain
-        + effective_irrigation
+        - max(0.0, tree_et_forecast_mm)
+        + effective_rain_mm
     )
 
-    return max(0.0, updated)
+    field_capacity_storage_mm = vwc_to_storage_mm(
+        field_capacity_vwc,
+        effective_depth_m,
+    )
+
+    drainage_mm = max(
+        0.0,
+        unbounded_future_storage_mm
+        - field_capacity_storage_mm,
+    )
+
+    future_storage_mm = min(
+        field_capacity_storage_mm,
+        max(0.0, unbounded_future_storage_mm),
+    )
+
+    future_vwc = storage_mm_to_vwc(
+        future_storage_mm,
+        effective_depth_m,
+    )
+
+    return {
+        "current_storage_mm": current_storage_mm,
+        "effective_rain_mm": effective_rain_mm,
+        "future_storage_mm": future_storage_mm,
+        "future_vwc": future_vwc,
+        "drainage_mm": drainage_mm,
+    }
 
 
-def fuse_sensor_and_model(
-    sensor_storage_mm: float,
-    model_storage_mm: float,
-    sensor_quality: float,
+def calculate_water_deficit_litres(
+    current_vwc: float,
+    target_vwc: float,
+    effective_depth_m: float,
+    irrigated_area_m2: float,
 ) -> float:
-    """
-    Use up to 80% sensor weight for a high-quality sensor.
-    """
-    quality = min(
-        1.0,
-        max(0.0, sensor_quality),
-    )
-
-    sensor_weight = 0.8 * quality
-    model_weight = 1.0 - sensor_weight
+    if current_vwc >= target_vwc:
+        return 0.0
 
     return (
-        sensor_weight * sensor_storage_mm
-        + model_weight * model_storage_mm
+        (target_vwc - current_vwc)
+        * effective_depth_m
+        * irrigated_area_m2
+        * 1000.0
+    )
+
+
+def calculate_expected_rain_litres(
+    rainfall_forecast_mm: float,
+    irrigated_area_m2: float,
+    rainfall_capture_efficiency: float,
+) -> float:
+    return (
+        max(0.0, rainfall_forecast_mm)
+        * irrigated_area_m2
+        * rainfall_capture_efficiency
     )
 
 
 def calculate_required_litres(
     current_vwc: float,
     target_vwc: float,
-    root_depth_m: float,
+    effective_depth_m: float,
     irrigated_area_m2: float,
     irrigation_efficiency: float,
     minimum_litres: float,
     maximum_litres: float,
-) -> float:
-    if current_vwc >= target_vwc:
-        return 0.0
-
-    net_litres = (
-        (target_vwc - current_vwc)
-        * root_depth_m
-        * irrigated_area_m2
-        * 1000.0
+) -> dict:
+    net_litres = calculate_water_deficit_litres(
+        current_vwc=current_vwc,
+        target_vwc=target_vwc,
+        effective_depth_m=effective_depth_m,
+        irrigated_area_m2=irrigated_area_m2,
     )
+
+    if net_litres <= 0:
+        return {
+            "net_litres": 0.0,
+            "gross_litres": 0.0,
+            "recommended_litres": 0.0,
+            "recommendation_capped": False,
+        }
 
     gross_litres = (
-        net_litres / irrigation_efficiency
+        net_litres
+        / irrigation_efficiency
     )
 
-    bounded_litres = min(
+    recommended_litres = min(
         maximum_litres,
         max(minimum_litres, gross_litres),
     )
 
-    return round(bounded_litres, 1)
+    return {
+        "net_litres": round(net_litres, 1),
+        "gross_litres": round(gross_litres, 1),
+        "recommended_litres": round(
+            recommended_litres,
+            1,
+        ),
+        "recommendation_capped": (
+            recommended_litres
+            != gross_litres
+        ),
+    }
