@@ -51,10 +51,16 @@ def save_prediction(
                 "refill_threshold_vwc",
                 "target_vwc",
                 "critical_vwc",
-                "decision",
+                "effective_rain_forecast_mm",
+                "expected_rain_litres",
+                "water_deficit_litres",
+                "calculated_gross_litres",
                 "recommended_litres",
+                "recommendation_capped",
+                "predicted_drainage_mm",
+                "decision",
                 "priority_score",
-                "confidence",
+                "data_quality",
             ],
         )
 
